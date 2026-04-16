@@ -6,7 +6,7 @@ import PurchasePage from './pages/PurchasePage';
 import TransferPage from './pages/TransferPage';
 import AssignmentPage from './pages/AssignmentPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import NavBar from './components/NavBar';
+import Navbar from './components/Navbar';
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useAuth();
@@ -18,7 +18,7 @@ function AppRoutes() {
   
   return (
     <>
-      {user && <NavBar />}
+      {user && <Navbar />}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route 

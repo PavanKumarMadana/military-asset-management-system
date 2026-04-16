@@ -1,27 +1,34 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
-
-import './Login.css'; // Import the new CSS file
 const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleLogin = () => {
-    if (username === "admin" && password === "admin123") {
-      login({ token: "YOUR_ACTUAL_GENERATED_TOKEN_GOES_HERE", username: "admin" }); // PASTE YOUR TOKEN HERE
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await api.post("/auth/login", { username, password });
+      login({ token: response.data.token, username });
       navigate("/dashboard");
-    } else {
-      setError("Invalid username or password");
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="login-container">
-      <div className="login-card">
+      <form className="login-card" onSubmit={handleLogin}>
         <h2 className="login-title">Welcome Back</h2>
         <p className="login-subtitle">Login to your account</p>
 
@@ -49,10 +56,10 @@ const Login = () => {
 
         {error && <p className="login-error">{error}</p>}
 
-        <button onClick={handleLogin} className="login-button">
-          Login
+        <button type="submit" className="login-button" disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
         </button>
-      </div>
+      </form>
     </div>
   );
 };

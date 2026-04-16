@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api/api';
+import api from '../api/axios';
 
 const Purchases = () => {
-  const [formData, setFormData] = useState({ assetId: '', quantity: '', base: '', selectedAssetType: '' });
+  const [formData, setFormData] = useState({ equipmentType: '', assetId: '', quantity: '', base: '' });
   const [purchases, setPurchases] = useState([]);
   const [assets, setAssets] = useState([]); // State to store available assets
   const [selectedAsset, setSelectedAsset] = useState(null); // State to store the currently selected asset object
@@ -36,10 +36,21 @@ const Purchases = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'equipmentType') {
+      setSelectedAsset(null);
+      setFormData({ ...formData, equipmentType: value, assetId: '' });
+      return;
+    }
+
     if (name === 'assetId') {
       const asset = assets.find(a => a.id === parseInt(value));
       setSelectedAsset(asset);
-      setFormData({ ...formData, [name]: value, selectedAssetType: asset ? asset.type : '' });
+      setFormData({
+        ...formData,
+        [name]: value,
+        equipmentType: asset ? asset.type : formData.equipmentType,
+        base: asset ? asset.base : formData.base,
+      });
       return;
     }
 
@@ -47,7 +58,7 @@ const Purchases = () => {
   };
 
   const validateForm = () => {
-    if (!formData.assetId || !formData.quantity || !formData.base) {
+    if (!formData.equipmentType || !formData.assetId || !formData.quantity || !formData.base) {
       setError('All fields are required');
       return false;
     }
@@ -67,7 +78,7 @@ const Purchases = () => {
     try {
       await api.post('/purchases', formData);
       setSuccess('Purchase recorded successfully');
-      setFormData({ assetId: '', quantity: '', base: '' }); // Clear form fields, no need to clear selectedAssetType from formData
+      setFormData({ equipmentType: '', assetId: '', quantity: '', base: '' });
       setSelectedAsset(null); // Clear selected asset
       fetchPurchases(); // Refetch purchases to show the new record
     } catch (err) {
@@ -75,6 +86,11 @@ const Purchases = () => {
       console.error(err);
     }
   };
+
+  const equipmentTypes = Array.from(new Set(assets.map(asset => asset.type).filter(Boolean))).sort();
+  const filteredAssets = formData.equipmentType
+    ? assets.filter(asset => asset.type === formData.equipmentType)
+    : assets;
 
   return (
     <div>
@@ -85,6 +101,22 @@ const Purchases = () => {
         {success && <div className="alert alert-success">{success}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
+            <label>Equipment Type</label>
+            <select
+              name="equipmentType"
+              value={formData.equipmentType}
+              onChange={handleInputChange}
+              className="form-control"
+            >
+              <option value="">Select Equipment Type</option>
+              {equipmentTypes.map(type => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
             <label>Asset ID</label>
             <select
               name="assetId"
@@ -93,16 +125,19 @@ const Purchases = () => {
               className="form-control" // Assuming you have some CSS for form-control
             >
               <option value="">Select Asset ID</option>
-              {assets.map(asset => (
+              {filteredAssets.map(asset => (
                 <option key={asset.id} value={asset.id}>
                   {asset.id} - {asset.name}
                 </option>
               ))}
             </select>
           </div>
-          {selectedAsset && <div className="form-group">
-            <label>Equipment Type: {selectedAsset.type}</label>
-          </div>}
+          {selectedAsset && (
+            <div className="form-group">
+              <label>Selected Asset</label>
+              <input type="text" value={`${selectedAsset.name} (${selectedAsset.type})`} readOnly />
+            </div>
+          )}
           <div className="form-group">
             <label>Quantity</label>
             <input

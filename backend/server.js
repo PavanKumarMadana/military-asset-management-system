@@ -1,9 +1,13 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+const logger = require('./utils/logger'); // Import the logger
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('./config/db');
+const authMiddleware = require('./middleware/authMiddleware');
 
 const app = express();
 app.use(cors());
@@ -61,7 +65,6 @@ db.serialize(() => {
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`);
 
-  const bcrypt = require('bcryptjs');
   const defaultPassword = 'admin123';
   bcrypt.hash(defaultPassword, 10, (err, hashed) => {
     if (err) return console.error('Admin seed error', err);
@@ -91,24 +94,68 @@ db.serialize(() => {
   });
 });
 
+const login = (req, res) => {
+  const { username, password } = req.body;
+
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
+    if (err || !user || !await bcrypt.compare(password, user.password)) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign({ id: user.id, role: user.role, base: user.base }, process.env.JWT_SECRET);
+    logger(`User logged in: ${username}`);
+    res.json({ token });
+  });
+};
+
+const register = async (req, res) => {
+  const { username, password, role, base } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  db.run(
+    `INSERT INTO users (username, password, role, base) VALUES (?, ?, ?, ?)`,
+    [username, hashedPassword, role, base],
+    function(err) {
+      if (err) return res.status(400).json({ message: 'User already exists' });
+      logger(`User registered: ${username}`);
+      res.status(201).json({ message: 'User registered' });
+    }
+  );
+};
+
+const getAssets = (req, res) => {
+  let query = `SELECT id, name, type, base, quantity, openingBalance, closingBalance FROM assets WHERE 1=1`;
+  const params = [];
+
+  if (req.user.role !== 'Admin') {
+    query += ` AND base = ?`;
+    params.push(req.user.base);
+  }
+
+  db.all(query, params, (err, rows) => {
+    if (err) {
+      logger(`Error fetching assets: ${err.message}`, 'error');
+      return res.status(500).json({ message: 'Error fetching assets' });
+    }
+    res.json(rows);
+  });
+};
+
 // Routes
-const authRoutes = require('./routes/authRoutes');
 const purchaseRoutes = require('./routes/purchaseRoutes');
 const transferRoutes = require('./routes/transferRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
-const assetRoutes = require('./routes/assetRoutes');
-const seedRoutes = require('./routes/seedRoutes');
 
-app.use('/api/auth', authRoutes);
+app.post('/api/auth/login', login);
+app.post('/api/auth/register', register);
+app.get('/api/assets', authMiddleware, getAssets);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/transfers', transferRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/assets', assetRoutes);
-app.use('/api/seed', seedRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  logger(`Server is running on port ${PORT}`);
 });

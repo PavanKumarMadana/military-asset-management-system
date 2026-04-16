@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api/api';
+import api from '../api/axios';
 
 const Assignments = () => {
   const [formData, setFormData] = useState({ assetId: '', personnel: '', quantity: '', base: '', type: 'assigned' });
